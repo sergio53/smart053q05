@@ -1,0 +1,25 @@
+#part1. MISE EN TEMPERATURE
+
+
+#name                               X          Y 
+0_chauffage_temperature.png      $3*60        $4, $5, $6, ($4+$5+$6)/3
+
+
+
+#part2. MISE EN CHARGE
+
+#name                               X          Y 
+1_charge_allongement.png            $5        $6/100, $7/100, ($6+$7)/200  
+1_charge_contrainte.png             $5        $4
+1_charge_temperature.png            $5        $8, $9, $10, ($8+$9+$10)/3      
+
+
+#part3. FLUAGE
+
+#name                               X          Y 
+2_fluage_allongement.png            $5        $6/100, $7/100, ($6+$7)/200
+2_fluage_allongement_moy.png        $5        ($6+$7)/200
+2_fluage_temperature.png            $5        $8, $9, $10, ($8+$9+$10)/3
+2_fluage_vitesse_moy.png            $5        vitesse de fluage (???) 
+
+  

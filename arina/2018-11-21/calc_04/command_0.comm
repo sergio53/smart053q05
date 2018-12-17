@@ -1,0 +1,276 @@
+#Calcul de J
+DEBUT(IGNORE_ALARM='FACTOR_82', PAR_LOT='NON')
+
+
+###############################################################
+#                                                             #
+#                   DEFINITION MATERIAU                       #
+#                                                             #
+##############################################################
+
+
+B = 12.5
+Csym=2.
+
+c_grad_vari = 1. 
+pena_lagr   = 5000 # entre 10*R0 et E
+
+poro_init = 0.002
+nucl_fn = 0.023
+nucl_ini = 0.5
+nucl_end = 1.1
+
+
+
+# DEFINITION DES PROPRIETES DU MATERIAU REEL (AFFECTE A LA VARIABLE ACIER)
+
+MA_EPR = DEFI_MATERIAU(ELAS = _F(E=190000.0, NU=0.3),
+              ECRO_NL  = _F(R0 = 488.361123569,
+                    RH = 0,
+                    R1 = 57.1333673502,
+                    GAMMA_1 = 8613.0,
+                    R2 = 238.731127339,
+                    GAMMA_2 = 10.386585592,
+                    ),
+                      GTN = _F(Q1 = 1.5,
+                                     Q2 = 1.07,
+                                     PORO_INIT = poro_init,
+                                     COAL_PORO = 0.05,
+                                     PORO_RUPT = 0.255555555555556,
+                                     NUCL_PORO = 0.0,
+                                     NUCL_PLAS = 0.2,
+                                     NUCL_DEV = 0.01,
+				     NUCL_FN= nucl_fn,   #0.0058,            #0.023,
+				     NUCL_INI= nucl_ini,
+				     NUCL_END= nucl_end,
+					                     ),
+              NON_LOCAL = _F(C_GRAD_VARI = c_grad_vari,
+                     PENA_LAGR   =pena_lagr,
+                     PENA_LAGR_INCO   =pena_lagr,
+                      ),
+              VISC_ELAS = _F(RIGI = 1900, TEMPS = 1./1000./10.,),
+                      )
+
+
+
+MA_RIGI2 = DEFI_MATERIAU(ELAS = _F(E=190000.0, NU=0.3),
+              ECRO_NL  = _F(R0 = 488361123569,
+                    RH = 0,
+                    R1 = 57.1333673502,
+                    GAMMA_1 = 8613.0,
+                    R2 = 238.731127339,
+                    GAMMA_2 = 10.386585592,
+                    ),
+                      GTN = _F(Q1 = 1.5,
+                                     Q2 = 1.07,
+                                     PORO_INIT = 2.e-4,
+                                     COAL_PORO = 0.05,
+                                     PORO_RUPT = 0.255555555555556,
+                                     NUCL_PORO = 0.0,
+                                     NUCL_PLAS = 0.2,
+                                     NUCL_DEV = 0.01,
+                     ),
+              NON_LOCAL = _F(C_GRAD_VARI = c_grad_vari,
+                     PENA_LAGR   =pena_lagr,
+                     PENA_LAGR_INCO = pena_lagr,
+                      ),
+              VISC_ELAS = _F(RIGI = 1900, TEMPS = 1./1000./10.,),
+                      )
+
+
+
+
+###############################################################
+#                                                             #
+#                   LECTURE DU MAILLAGE                       #
+#                                                             #
+###############################################################
+
+
+MAILCT45= LIRE_MAILLAGE(FORMAT='MED')
+
+
+
+
+
+#=============================================================#
+#                     MODELE + CHAMP MATERIAU                 #
+#=============================================================#
+
+MO_MEC45 = AFFE_MODELE(MAILLAGE=MAILCT45,  INFO=1,
+                       AFFE=(_F(TOUT=('OUI',),
+                                PHENOMENE='MECANIQUE',
+                                MODELISATION=('D_PLAN_GRAD_INCO',),
+                                ),
+			     _F(GROUP_MA=('SGOUPIL',),
+                                PHENOMENE='MECANIQUE',
+                                MODELISATION=('D_PLAN_GRAD_INCO',),
+                                ),
+			    ),
+                       )
+
+
+ChMat = AFFE_MATERIAU(MAILLAGE = MAILCT45,
+                          AFFE = (_F(GROUP_MA =('SCT',),
+                                     MATER = MA_EPR,
+                                     ),
+                                  _F(GROUP_MA =('SGOUPIL',),
+                                     MATER = MA_RIGI2,
+                                     ),
+
+                                  ),
+                     )
+
+###############################################################
+#                                                             #
+#                      CHARGEMENT                             # 
+#                                                             #
+###############################################################
+
+
+RAMP=DEFI_FONCTION(NOM_PARA='INST',
+                   VALE=(
+                       0.0, 0.0,
+                       1.0, 1.0,
+                       ),
+                   PROL_DROITE='LINEAIRE',
+                   PROL_GAUCHE='LINEAIRE',)
+
+
+CHARDEPL=AFFE_CHAR_MECA(
+    MODELE   = MO_MEC45,
+    DDL_IMPO = _F(GROUP_NO='NGOUPIL', DX=0, DY=2.),
+    )
+   
+   
+SYMETRIE = AFFE_CHAR_CINE(
+    MODELE    = MO_MEC45,
+    MECA_IMPO = _F(GROUP_MA='LDY0', DY=0),
+    )
+
+
+   
+   
+LInstCal= DEFI_LIST_REEL(
+    DEBUT      = 0.0,
+    INTERVALLE = _F(JUSQU_A=1, NOMBRE=1000),
+    )
+
+                        
+LInstRes=DEFI_LIST_INST(DEFI_LIST=_F(LIST_INST=LInstCal,),
+                        ECHEC=_F(ACTION='ITER_SUPPL',
+                                 SUBD_METHODE='MANUEL',
+                                 SUBD_PAS_MINI=1.E-12,
+                                 SUBD_PAS=4,),)
+
+
+
+###############################################################
+#                                                             #
+#                        CALCUL                               #
+#                                                             #
+###############################################################
+
+RESU  = STAT_NON_LINE (MODELE = MO_MEC45, 
+                       CHAM_MATER = ChMat,
+                       EXCIT =(_F(CHARGE = SYMETRIE),
+                               _F(CHARGE = CHARDEPL, FONC_MULT=RAMP),
+                               ),
+                       COMPORTEMENT = (
+                           _F(RELATION='GTN',   
+		              DEFORMATION='GDEF_LOG', 
+	                      GROUP_MA='SCT', 
+			      ITER_INTE_MAXI=40),
+                           _F(RELATION='GTN', 
+			      DEFORMATION='GDEF_LOG',
+			      GROUP_MA='SGOUPIL'),
+                           ),                   
+                       CONVERGENCE=_F(RESI_REFE_RELA=1.E-3,
+                                      SIGM_REFE = 600. ,
+                                      EPSI_REFE = .5,
+				      VARI_REFE = 0.01,
+ 				      LAGR_REFE = 600,
+                                      ITER_GLOB_MAXI=20,
+                                      ),
+                       SOLVEUR=_F(METHODE='MUMPS', PCENT_PIVOT=20, MATR_DISTRIBUEE='OUI'),
+ 		       INCREMENT = _F(LIST_INST = LInstRes, 
+				     INST_FIN= 0.5),
+                       AFFICHAGE = _F(INFO_RESIDU='OUI'),
+                       NEWTON    = _F(MATRICE='TANGENTE', REAC_ITER=1),
+                       )
+
+
+
+
+#RESU=CALC_CHAMP(reuse =RESU,
+#               RESULTAT=RESU,
+#               CRITERES=('SIEQ_ELGA','SIEQ_ELNO','EPEQ_ELNO'),
+#               VARI_INTERNE =('VARI_NOEU'),
+#               CONTRAINTE=('SIGM_ELNO','SIGM_ELGA',),
+#               DEFORMATION=('EPSG_NOEU',),
+#               )
+
+RESU = CALC_CHAMP(reuse = RESU,
+                  RESULTAT = RESU,
+                  CHAM_MATER = ChMat,
+                  CONTRAINTE = 'SIEF_ELNO',
+                  FORCE = 'REAC_NODA')
+
+IMPR_RESU(FORMAT='MED',
+          UNITE=80,
+      RESU=_F(RESULTAT=RESU),
+      )
+
+###############################################################
+#                                                             #
+#                        post-traitement                      #
+#                                                             #
+###############################################################
+#-------------------------------------------------------------
+# OUVERTURE DE L'EPROUVETTE (CMOD)
+#-------------------------------------------------------------
+
+CMOD=POST_RELEVE_T(ACTION=_F(INTITULE='CMOD',GROUP_NO= ('NOUV',),RESULTAT=RESU,
+                            NOM_CHAM='DEPL',TOUT_CMP='OUI',OPERATION='EXTRACTION',),);
+CM_OD = CALC_TABLE (TABLE=CMOD,ACTION=_F(OPERATION='EXTR',NOM_PARA=('INST','DY'),),);
+cmod=CM_OD.EXTR_TABLE();
+
+
+
+#-------------------------------------------------------------
+# CTOD
+#-------------------------------------------------------------
+CTOD=POST_RELEVE_T(ACTION=_F(INTITULE='CTOD',GROUP_NO= ('TIP',),RESULTAT=RESU,
+                            NOM_CHAM='DEPL',TOUT_CMP='OUI',OPERATION='EXTRACTION',),);
+CT_OD = CALC_TABLE (TABLE=CTOD,ACTION=_F(OPERATION='EXTR',NOM_PARA=('INST','DY'),),);
+ctod=CT_OD.EXTR_TABLE();
+
+
+#-------------------------------------------------------------
+# FORCE APPLIQUEE SUR L'EPROUVETTE
+#-------------------------------------------------------------
+FORCE=POST_RELEVE_T(ACTION=_F(INTITULE='REAC_NODA',GROUP_NO= 'NGOUPIL',RESULTAT=RESU,
+                             NOM_CHAM='REAC_NODA',TOUT_CMP='OUI',OPERATION='EXTRACTION',),);
+
+F = CALC_TABLE (TABLE=FORCE,ACTION=_F(OPERATION='EXTR',NOM_PARA=('INST','DY'),),);
+f= F.EXTR_TABLE();
+
+
+
+
+
+#===============================================#
+#IMPRESSION DES RESULTATS DANS UN FICHIER#
+#===============================================#
+DEFI_FICHIER(UNITE=38,FICHIER='./REPE_OUT/data')
+ff=open("./REPE_OUT/data","w")
+ff.write("#INST  CMOD   FORCE   \n")
+for i in range(len(cmod.INST)):
+        ff.write("%E          %E              %E \n" %(cmod.INST[i],Csym*(cmod.DY[i]), B*(f.DY[i])))
+ff.close()
+
+
+
+
+
+FIN()
